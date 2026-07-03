@@ -1,0 +1,443 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Seat Booking</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <style>
+    :root {
+      --bg: var(--tg-theme-bg-color, #ffffff);
+      --text: var(--tg-theme-text-color, #111111);
+      --secondary-bg: var(--tg-theme-secondary-bg-color, #f6f6f6);
+      --button: var(--tg-theme-button-color, #2481cc);
+      --button-text: var(--tg-theme-button-text-color, #ffffff);
+      --border: rgba(0, 0, 0, 0.12);
+      --muted: rgba(0, 0, 0, 0.62);
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 16px;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    h2 {
+      margin: 0 0 8px;
+    }
+
+    .hint {
+      opacity: 0.75;
+      font-size: 14px;
+      margin-bottom: 16px;
+      line-height: 1.4;
+    }
+
+    .day-card {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 10px;
+      background: var(--secondary-bg);
+      overflow: hidden;
+    }
+
+    .day-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .day-header input {
+      width: 22px;
+      height: 22px;
+      flex: 0 0 auto;
+    }
+
+    .day-name {
+      font-size: 18px;
+      font-weight: 800;
+      flex: 1;
+    }
+
+    .chosen-line {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .chevron {
+      font-size: 20px;
+      opacity: 0.55;
+      transition: transform 0.15s ease;
+    }
+
+    .day-card.open .chevron {
+      transform: rotate(90deg);
+    }
+
+    .details {
+      display: none;
+      padding: 0 14px 14px 46px;
+      border-top: 1px solid var(--border);
+    }
+
+    .day-card.open .details {
+      display: block;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 800;
+      margin: 12px 0 8px;
+      opacity: 0.8;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .venue-options {
+      display: grid;
+      gap: 8px;
+    }
+
+    .venue-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.45);
+    }
+
+    .venue-option input {
+      width: 18px;
+      height: 18px;
+    }
+
+    .time-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .time-field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 13px;
+      font-weight: 700;
+      opacity: 0.9;
+    }
+
+    select {
+      width: 100%;
+      font-size: 16px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: #111;
+    }
+
+    .error {
+      color: #b00020;
+      font-size: 13px;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .summary {
+      white-space: pre-line;
+      margin: 16px 0;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.06);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    button {
+      width: 100%;
+      padding: 15px;
+      border: 0;
+      border-radius: 12px;
+      font-size: 17px;
+      font-weight: 800;
+      background: var(--button);
+      color: var(--button-text);
+      cursor: pointer;
+    }
+
+    button:active {
+      transform: scale(0.99);
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Book a seat</h2>
+
+  <div class="hint">
+    Select one or more weekdays. When a day is selected, it opens so you can choose exactly one venue and one time range for that day.
+    Times are available in 30-minute intervals.
+  </div>
+
+  <div id="form"></div>
+
+  <div class="summary" id="summary">No days selected yet.</div>
+
+  <button onclick="submitBooking()">Submit booking</button>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+    const venues = ["Ven1", "Ven2", "Ven3"];
+
+    const DEFAULT_VENUE = "Ven1";
+    const DEFAULT_START = "09:00";
+    const DEFAULT_END = "09:30";
+
+    // Change these if you want a wider or narrower bookable day.
+    const BOOKING_START = "08:00";
+    const BOOKING_END = "22:00";
+    const STEP_MINUTES = 30;
+
+    const form = document.getElementById("form");
+    const summary = document.getElementById("summary");
+
+    function safeId(value) {
+      return value.replaceAll(" ", "_").replaceAll(":", "_");
+    }
+
+    function timeToMinutes(value) {
+      const [h, m] = value.split(":").map(Number);
+      return h * 60 + m;
+    }
+
+    function minutesToTime(value) {
+      const h = Math.floor(value / 60);
+      const m = value % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    }
+
+    function makeTimeOptions(selectedValue, includeFinalEndTime = false) {
+      const start = timeToMinutes(BOOKING_START);
+      const end = timeToMinutes(BOOKING_END);
+      const last = includeFinalEndTime ? end : end - STEP_MINUTES;
+
+      let html = "";
+
+      for (let t = start; t <= last; t += STEP_MINUTES) {
+        const value = minutesToTime(t);
+        const selected = value === selectedValue ? "selected" : "";
+        html += `<option value="${value}" ${selected}>${value}</option>`;
+      }
+
+      return html;
+    }
+
+    function renderForm() {
+      form.innerHTML = "";
+
+      for (const day of days) {
+        const dayId = safeId(day);
+
+        const card = document.createElement("div");
+        card.className = "day-card";
+        card.id = `${dayId}_card`;
+
+        card.innerHTML = `
+          <label class="day-header" for="${dayId}_checked">
+            <input
+              type="checkbox"
+              id="${dayId}_checked"
+              onchange="toggleDay('${day}')"
+            >
+
+            <div>
+              <div class="day-name">${day}</div>
+              <div class="chosen-line" id="${dayId}_chosen">Not selected</div>
+            </div>
+
+            <div class="chevron">›</div>
+          </label>
+
+          <div class="details">
+            <div class="section-title">Venue</div>
+
+            <div class="venue-options">
+              ${venues.map((venue) => `
+                <label class="venue-option">
+                  <input
+                    type="radio"
+                    name="${dayId}_venue"
+                    value="${venue}"
+                    ${venue === DEFAULT_VENUE ? "checked" : ""}
+                    onchange="updateSummary()"
+                  >
+                  ${venue}
+                </label>
+              `).join("")}
+            </div>
+
+            <div class="section-title">Time</div>
+
+            <div class="time-row">
+              <label class="time-field">
+                Start
+                <select id="${dayId}_start" onchange="updateSummary()">
+                  ${makeTimeOptions(DEFAULT_START, false)}
+                </select>
+              </label>
+
+              <label class="time-field">
+                End
+                <select id="${dayId}_end" onchange="updateSummary()">
+                  ${makeTimeOptions(DEFAULT_END, true)}
+                </select>
+              </label>
+            </div>
+
+            <div class="error" id="${dayId}_error"></div>
+          </div>
+        `;
+
+        form.appendChild(card);
+      }
+
+      updateSummary();
+    }
+
+    function toggleDay(day) {
+      const dayId = safeId(day);
+      const checked = document.getElementById(`${dayId}_checked`).checked;
+      const card = document.getElementById(`${dayId}_card`);
+
+      if (checked) {
+        card.classList.add("open");
+      } else {
+        card.classList.remove("open");
+      }
+
+      updateSummary();
+    }
+
+    function getSelectedVenue(day) {
+      const dayId = safeId(day);
+      const selected = document.querySelector(`input[name="${dayId}_venue"]:checked`);
+      return selected ? selected.value : null;
+    }
+
+    function collectBookings() {
+      const bookings = [];
+      const errors = [];
+
+      for (const day of days) {
+        const dayId = safeId(day);
+        const checked = document.getElementById(`${dayId}_checked`).checked;
+        const errorBox = document.getElementById(`${dayId}_error`);
+
+        errorBox.style.display = "none";
+        errorBox.textContent = "";
+
+        if (!checked) {
+          document.getElementById(`${dayId}_chosen`).textContent = "Not selected";
+          continue;
+        }
+
+        const venue = getSelectedVenue(day);
+        const start = document.getElementById(`${dayId}_start`).value;
+        const end = document.getElementById(`${dayId}_end`).value;
+
+        if (!venue) {
+          errors.push(`${day}: choose one venue`);
+          errorBox.textContent = "Choose one venue.";
+          errorBox.style.display = "block";
+          continue;
+        }
+
+        if (timeToMinutes(start) >= timeToMinutes(end)) {
+          errors.push(`${day}: end time must be after start time`);
+          errorBox.textContent = "End time must be after start time.";
+          errorBox.style.display = "block";
+          document.getElementById(`${dayId}_chosen`).textContent = `${venue} — invalid time`;
+          continue;
+        }
+
+        const booking = {
+          day: day,
+          venue: venue,
+          start: start,
+          end: end
+        };
+
+        bookings.push(booking);
+        document.getElementById(`${dayId}_chosen`).textContent = `${venue} — ${start} to ${end}`;
+      }
+
+      return { bookings, errors };
+    }
+
+    function updateSummary() {
+      const result = collectBookings();
+
+      if (result.bookings.length === 0 && result.errors.length === 0) {
+        summary.textContent = "No days selected yet.";
+        return;
+      }
+
+      let text = "";
+
+      if (result.bookings.length > 0) {
+        text += "Selected:\n";
+        text += result.bookings
+          .map(item => `${item.day} — ${item.venue} — ${item.start} to ${item.end}`)
+          .join("\n");
+      }
+
+      if (result.errors.length > 0) {
+        if (text) {
+          text += "\n\n";
+        }
+
+        text += "Fix these issues:\n";
+        text += result.errors.join("\n");
+      }
+
+      summary.textContent = text;
+    }
+
+    function submitBooking() {
+      const result = collectBookings();
+
+      if (result.errors.length > 0) {
+        tg.showAlert(result.errors.join("\n"));
+        return;
+      }
+
+      if (result.bookings.length === 0) {
+        tg.showAlert("Please select at least one weekday.");
+        return;
+      }
+
+      tg.sendData(JSON.stringify({
+        bookings: result.bookings
+      }));
+
+      tg.close();
+    }
+
+    renderForm();
+  </script>
+</body>
+</html>
