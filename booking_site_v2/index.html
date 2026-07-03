@@ -9,30 +9,21 @@
 
   <style>
     :root {
-      color-scheme: light dark;
+      color-scheme: dark;
 
-      --bg: var(--tg-theme-bg-color, #ffffff);
-      --text: var(--tg-theme-text-color, #111111);
-      --hint: var(--tg-theme-hint-color, #707579);
-      --secondary-bg: var(--tg-theme-secondary-bg-color, #f4f4f5);
-      --button: var(--tg-theme-button-color, #2481cc);
-      --button-text: var(--tg-theme-button-text-color, #ffffff);
-      --link: var(--tg-theme-link-color, #2481cc);
+      --bg: #0f1117;
+      --text: #f2f4f8;
+      --hint: #9aa4b2;
+      --secondary-bg: #171a23;
+      --button: #4da3ff;
+      --button-text: #ffffff;
+      --link: #78b7ff;
 
-      --card: color-mix(in srgb, var(--secondary-bg) 88%, var(--bg));
-      --card-selected: color-mix(in srgb, var(--secondary-bg) 76%, var(--button) 10%);
-      --field-bg: color-mix(in srgb, var(--bg) 88%, var(--secondary-bg));
-      --line: color-mix(in srgb, var(--hint) 28%, transparent);
-      --danger: #d93025;
-    }
-
-    @supports not (background: color-mix(in srgb, white, black)) {
-      :root {
-        --card: var(--secondary-bg);
-        --card-selected: var(--secondary-bg);
-        --field-bg: var(--bg);
-        --line: rgba(127, 127, 127, 0.35);
-      }
+      --card: #171a23;
+      --card-selected: #1d2b3f;
+      --field-bg: #10131a;
+      --line: rgba(255, 255, 255, 0.14);
+      --danger: #ff6b6b;
     }
 
     * {
@@ -63,7 +54,7 @@
     }
 
     .day-card.selected {
-      border-color: color-mix(in srgb, var(--button) 58%, var(--line));
+      border-color: var(--button);
       background: var(--card-selected);
     }
 
@@ -104,8 +95,8 @@
 
     .change-btn {
       appearance: none;
-      border: 1px solid color-mix(in srgb, var(--button) 55%, transparent);
-      background: color-mix(in srgb, var(--button) 13%, transparent);
+      border: 1px solid rgba(77, 163, 255, 0.55);
+      background: rgba(77, 163, 255, 0.13);
       color: var(--link);
       border-radius: 999px;
       padding: 8px 11px;
@@ -169,7 +160,7 @@
 
     .venue-option input:checked + .venue-label {
       border-color: var(--button);
-      background: color-mix(in srgb, var(--button) 18%, var(--field-bg));
+      background: rgba(77, 163, 255, 0.18);
     }
 
     .hours-line {
@@ -239,8 +230,8 @@
     }
 
     .summary.error {
-      border-color: color-mix(in srgb, var(--danger) 62%, var(--line));
-      background: color-mix(in srgb, var(--danger) 9%, var(--secondary-bg));
+      border-color: rgba(255, 107, 107, 0.7);
+      background: rgba(255, 107, 107, 0.1);
     }
 
     .submit-btn {
@@ -259,12 +250,6 @@
     .submit-btn:active,
     .change-btn:active {
       transform: scale(0.99);
-    }
-
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --danger: #ff6b6b;
-      }
     }
 
     @media (max-width: 390px) {
@@ -329,6 +314,21 @@
       "Sonntag"
     ];
 
+    const MONATE = [
+      "Januar",
+      "Februar",
+      "März",
+      "April",
+      "Mai",
+      "Juni",
+      "Juli",
+      "August",
+      "September",
+      "Oktober",
+      "November",
+      "Dezember"
+    ];
+
     const ORTE = ["MI", "Stammgelände"];
 
     const OEFFNUNGSZEITEN = {
@@ -362,6 +362,54 @@
 
     const form = document.getElementById("form");
     const summary = document.getElementById("summary");
+
+    function montagDerNaechstenWoche() {
+      const heute = new Date();
+
+      heute.setHours(12, 0, 0, 0);
+
+      const heutigerWochentag = heute.getDay();
+      const tageSeitMontag = heutigerWochentag === 0
+        ? 6
+        : heutigerWochentag - 1;
+
+      const montagDieseWoche = new Date(heute);
+      montagDieseWoche.setDate(heute.getDate() - tageSeitMontag);
+
+      const montagNaechsteWoche = new Date(montagDieseWoche);
+      montagNaechsteWoche.setDate(montagDieseWoche.getDate() + 7);
+
+      return montagNaechsteWoche;
+    }
+
+    const START_NAECHSTE_WOCHE = montagDerNaechstenWoche();
+
+    function datumFuerTag(tag) {
+      const index = WOCHENTAGE.indexOf(tag);
+      const datum = new Date(START_NAECHSTE_WOCHE);
+
+      datum.setDate(START_NAECHSTE_WOCHE.getDate() + index);
+
+      return datum;
+    }
+
+    function datumText(tag) {
+      const datum = datumFuerTag(tag);
+      return `${datum.getDate()}. ${MONATE[datum.getMonth()]}`;
+    }
+
+    function isoDatum(tag) {
+      const datum = datumFuerTag(tag);
+      const jahr = datum.getFullYear();
+      const monat = String(datum.getMonth() + 1).padStart(2, "0");
+      const tagNummer = String(datum.getDate()).padStart(2, "0");
+
+      return `${jahr}-${monat}-${tagNummer}`;
+    }
+
+    function tagMitDatum(tag) {
+      return `${tag}, ${datumText(tag)}`;
+    }
 
     function idFuer(text) {
       return text
@@ -418,15 +466,20 @@
       const erster = istEnde ? startMin + SCHRITT_MINUTEN : startMin;
       const letzter = istEnde ? endeMin : endeMin - SCHRITT_MINUTEN;
 
-      if (wertMin < erster) return zeit(erster);
-      if (wertMin > letzter) return zeit(letzter);
+      if (wertMin < erster) {
+        return zeit(erster);
+      }
+
+      if (wertMin > letzter) {
+        return zeit(letzter);
+      }
 
       return wert;
     }
 
-    function optionen(von, bis, ausgewaehlt, istEnde, maxBis = null) {
+    function optionen(von, bis, ausgewaehlt, istEnde) {
       const vonMin = minuten(von);
-      const bisMin = maxBis === null ? minuten(bis) : Math.min(minuten(bis), maxBis);
+      const bisMin = minuten(bis);
 
       const erster = istEnde ? vonMin + SCHRITT_MINUTEN : vonMin;
       const letzter = istEnde ? bisMin : bisMin - SCHRITT_MINUTEN;
@@ -460,7 +513,9 @@
       beginnSelect.value = beginn;
 
       rebuildEnde(tag, ende);
-      document.getElementById(`${tagId}_oeffnung`).textContent = `Öffnungszeiten: ${offen}–${geschlossen}`;
+
+      document.getElementById(`${tagId}_oeffnung`).textContent =
+        `Öffnungszeiten: ${offen}–${geschlossen}`;
     }
 
     function rebuildEnde(tag, gewuenschtesEnde = null) {
@@ -473,7 +528,10 @@
 
       const beginn = beginnSelect.value;
       const beginnMin = minuten(beginn);
-      const maxEndeMin = Math.min(minuten(geschlossen), beginnMin + MAX_MINUTEN_PRO_TAG);
+      const maxEndeMin = Math.min(
+        minuten(geschlossen),
+        beginnMin + MAX_MINUTEN_PRO_TAG
+      );
 
       let ende = gewuenschtesEnde || endeSelect.value || STANDARD_ENDE;
       ende = zeitInBereich(ende, beginn, zeit(maxEndeMin), true);
@@ -502,7 +560,7 @@
             >
 
             <label class="day-main" for="${tagId}_aktiv">
-              <div class="day-name">${tag}</div>
+              <div class="day-name">${tagMitDatum(tag)}</div>
               <div class="day-sub" id="${tagId}_sub"></div>
             </label>
 
@@ -616,14 +674,14 @@
         sub.textContent = `${ort} · ${beginn}–${ende} · ${dauerText(dauer)}`;
 
         if (dauer <= 0) {
-          fehler.push(`${tag}: Ende muss nach Beginn liegen.`);
+          fehler.push(`${tagMitDatum(tag)}: Ende muss nach Beginn liegen.`);
           status.textContent = "Ende muss nach Beginn liegen.";
           status.className = "status-line error";
           continue;
         }
 
         if (dauer > MAX_MINUTEN_PRO_TAG) {
-          fehler.push(`${tag}: maximal 16 Stunden pro Tag.`);
+          fehler.push(`${tagMitDatum(tag)}: maximal 16 Stunden pro Tag.`);
           status.textContent = "Maximal 16 Stunden pro Tag.";
           status.className = "status-line error";
           continue;
@@ -633,12 +691,18 @@
 
         buchungen.push({
           tag: tag,
+          datum: datumText(tag),
+          iso_datum: isoDatum(tag),
+          tag_mit_datum: tagMitDatum(tag),
           ort: ort,
           beginn: beginn,
           ende: ende,
 
           // Kompatibilität mit dem bisherigen Python-Bot:
-          day: tag,
+          day: tagMitDatum(tag),
+          weekday: tag,
+          date: datumText(tag),
+          iso_date: isoDatum(tag),
           venue: ort,
           start: beginn,
           end: ende
@@ -667,14 +731,17 @@
 
       if (result.buchungen.length > 0) {
         text += result.buchungen
-          .map(item => `${item.tag}: ${item.ort}, ${item.beginn}–${item.ende}`)
+          .map(item => `${item.tag_mit_datum}: ${item.ort}, ${item.beginn}–${item.ende}`)
           .join("\n");
 
         text += `\n\nGesamt: ${dauerText(result.gesamtMinuten)}`;
       }
 
       if (result.fehler.length > 0) {
-        if (text) text += "\n\n";
+        if (text) {
+          text += "\n\n";
+        }
+
         text += result.fehler.join("\n");
       }
 
@@ -699,6 +766,9 @@
 
       const deutsch = result.buchungen.map(item => ({
         tag: item.tag,
+        datum: item.datum,
+        iso_datum: item.iso_datum,
+        tag_mit_datum: item.tag_mit_datum,
         ort: item.ort,
         beginn: item.beginn,
         ende: item.ende
@@ -706,6 +776,9 @@
 
       const kompatibel = result.buchungen.map(item => ({
         day: item.day,
+        weekday: item.weekday,
+        date: item.date,
+        iso_date: item.iso_date,
         venue: item.venue,
         start: item.start,
         end: item.end
