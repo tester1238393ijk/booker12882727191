@@ -1,90 +1,124 @@
 <!doctype html>
-<html>
+<html lang="de">
 <head>
   <meta charset="utf-8">
-  <title>Seat Booking</title>
+  <title>Sitzplatz buchen</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
   <style>
     :root {
+      color-scheme: light dark;
+
       --bg: var(--tg-theme-bg-color, #ffffff);
       --text: var(--tg-theme-text-color, #111111);
-      --secondary-bg: var(--tg-theme-secondary-bg-color, #f6f6f6);
+      --hint: var(--tg-theme-hint-color, #707579);
+      --secondary-bg: var(--tg-theme-secondary-bg-color, #f4f4f5);
       --button: var(--tg-theme-button-color, #2481cc);
       --button-text: var(--tg-theme-button-text-color, #ffffff);
-      --border: rgba(0, 0, 0, 0.12);
-      --muted: rgba(0, 0, 0, 0.62);
+      --link: var(--tg-theme-link-color, #2481cc);
+
+      --card: color-mix(in srgb, var(--secondary-bg) 88%, var(--bg));
+      --card-selected: color-mix(in srgb, var(--secondary-bg) 76%, var(--button) 10%);
+      --field-bg: color-mix(in srgb, var(--bg) 88%, var(--secondary-bg));
+      --line: color-mix(in srgb, var(--hint) 28%, transparent);
+      --danger: #d93025;
+    }
+
+    @supports not (background: color-mix(in srgb, white, black)) {
+      :root {
+        --card: var(--secondary-bg);
+        --card-selected: var(--secondary-bg);
+        --field-bg: var(--bg);
+        --line: rgba(127, 127, 127, 0.35);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
     }
 
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      margin: 16px;
+      margin: 0;
+      padding: 16px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: var(--bg);
       color: var(--text);
     }
 
-    h2 {
-      margin: 0 0 8px;
-    }
-
-    .hint {
-      opacity: 0.75;
-      font-size: 14px;
-      margin-bottom: 16px;
-      line-height: 1.4;
+    h1 {
+      margin: 0 0 14px;
+      font-size: 24px;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
     }
 
     .day-card {
-      border: 1px solid var(--border);
-      border-radius: 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
       margin-bottom: 10px;
-      background: var(--secondary-bg);
+      background: var(--card);
       overflow: hidden;
     }
 
-    .day-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 14px;
-      cursor: pointer;
-      user-select: none;
+    .day-card.selected {
+      border-color: color-mix(in srgb, var(--button) 58%, var(--line));
+      background: var(--card-selected);
     }
 
-    .day-header input {
+    .day-top {
+      display: grid;
+      grid-template-columns: 34px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 14px;
+    }
+
+    .day-check {
       width: 22px;
       height: 22px;
-      flex: 0 0 auto;
+      margin: 0;
+      accent-color: var(--button);
+    }
+
+    .day-main {
+      min-width: 0;
+      cursor: pointer;
     }
 
     .day-name {
       font-size: 18px;
-      font-weight: 800;
-      flex: 1;
+      font-weight: 850;
+      line-height: 1.2;
     }
 
-    .chosen-line {
+    .day-sub {
+      margin-top: 3px;
       font-size: 13px;
-      color: var(--muted);
-      margin-top: 2px;
+      color: var(--hint);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .chevron {
-      font-size: 20px;
-      opacity: 0.55;
-      transition: transform 0.15s ease;
-    }
-
-    .day-card.open .chevron {
-      transform: rotate(90deg);
+    .change-btn {
+      appearance: none;
+      border: 1px solid color-mix(in srgb, var(--button) 55%, transparent);
+      background: color-mix(in srgb, var(--button) 13%, transparent);
+      color: var(--link);
+      border-radius: 999px;
+      padding: 8px 11px;
+      font-weight: 800;
+      font-size: 14px;
+      cursor: pointer;
+      white-space: nowrap;
     }
 
     .details {
       display: none;
-      padding: 0 14px 14px 46px;
-      border-top: 1px solid var(--border);
+      border-top: 1px solid var(--line);
+      padding: 12px 14px 14px 46px;
     }
 
     .day-card.open .details {
@@ -92,352 +126,602 @@
     }
 
     .section-title {
-      font-size: 13px;
-      font-weight: 800;
-      margin: 12px 0 8px;
-      opacity: 0.8;
+      margin: 2px 0 8px;
+      font-size: 12px;
+      font-weight: 850;
+      color: var(--hint);
       text-transform: uppercase;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.04em;
     }
 
-    .venue-options {
+    .venue-grid {
       display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 8px;
+      margin-bottom: 10px;
     }
 
     .venue-option {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 9px 10px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.45);
+      position: relative;
     }
 
     .venue-option input {
-      width: 18px;
-      height: 18px;
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .venue-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--field-bg);
+      font-size: 16px;
+      font-weight: 850;
+      cursor: pointer;
+      user-select: none;
+      text-align: center;
+      padding: 0 8px;
+    }
+
+    .venue-option input:checked + .venue-label {
+      border-color: var(--button);
+      background: color-mix(in srgb, var(--button) 18%, var(--field-bg));
+    }
+
+    .hours-line {
+      color: var(--hint);
+      font-size: 13px;
+      margin: 0 0 12px;
     }
 
     .time-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
-      margin-top: 8px;
+      margin-bottom: 8px;
     }
 
-    .time-field {
+    label.time-field {
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 6px;
       font-size: 13px;
-      font-weight: 700;
-      opacity: 0.9;
+      font-weight: 850;
+      color: var(--hint);
     }
 
     select {
       width: 100%;
       font-size: 16px;
-      padding: 10px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: #fff;
-      color: #111;
+      color: var(--text);
+      background: var(--field-bg);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 11px 10px;
+      outline: none;
     }
 
-    .error {
-      color: #b00020;
+    select:focus {
+      border-color: var(--button);
+    }
+
+    .status-line {
+      min-height: 18px;
+      margin-top: 6px;
       font-size: 13px;
-      margin-top: 8px;
-      display: none;
+      line-height: 1.35;
+      color: var(--hint);
+    }
+
+    .status-line.error {
+      color: var(--danger);
+      font-weight: 800;
     }
 
     .summary {
+      display: none;
       white-space: pre-line;
       margin: 16px 0;
-      padding: 12px;
-      border-radius: 12px;
-      background: rgba(0, 0, 0, 0.06);
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--secondary-bg);
       font-size: 14px;
       line-height: 1.45;
     }
 
-    button {
+    .summary.visible {
+      display: block;
+    }
+
+    .summary.error {
+      border-color: color-mix(in srgb, var(--danger) 62%, var(--line));
+      background: color-mix(in srgb, var(--danger) 9%, var(--secondary-bg));
+    }
+
+    .submit-btn {
       width: 100%;
       padding: 15px;
       border: 0;
-      border-radius: 12px;
+      border-radius: 14px;
       font-size: 17px;
-      font-weight: 800;
+      font-weight: 850;
       background: var(--button);
       color: var(--button-text);
       cursor: pointer;
+      margin-top: 4px;
     }
 
-    button:active {
+    .submit-btn:active,
+    .change-btn:active {
       transform: scale(0.99);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --danger: #ff6b6b;
+      }
+    }
+
+    @media (max-width: 390px) {
+      body {
+        padding: 12px;
+      }
+
+      .day-top {
+        grid-template-columns: 30px 1fr auto;
+        padding: 12px;
+      }
+
+      .details {
+        padding-left: 42px;
+      }
+
+      .change-btn {
+        padding: 7px 9px;
+        font-size: 13px;
+      }
+
+      .venue-label {
+        font-size: 14px;
+      }
     }
   </style>
 </head>
 
 <body>
-  <h2>Book a seat</h2>
-
-  <div class="hint">
-    Select one or more weekdays. When a day is selected, it opens so you can choose exactly one venue and one time range for that day.
-    Times are available in 30-minute intervals.
-  </div>
+  <h1>Sitzplatz buchen</h1>
 
   <div id="form"></div>
 
-  <div class="summary" id="summary">No days selected yet.</div>
+  <div class="summary" id="summary"></div>
 
-  <button onclick="submitBooking()">Submit booking</button>
+  <button class="submit-btn" onclick="submitBooking()">Buchung senden</button>
 
   <script>
-    const tg = window.Telegram.WebApp;
+    const tg = window.Telegram && window.Telegram.WebApp
+      ? window.Telegram.WebApp
+      : {
+          ready() {},
+          expand() {},
+          showAlert(message) { alert(message); },
+          sendData(data) {
+            console.log("Telegram WebApp.sendData:", data);
+            alert(data);
+          },
+          close() {}
+        };
+
     tg.ready();
     tg.expand();
 
-    const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-    const venues = ["Ven1", "Ven2", "Ven3"];
+    const WOCHENTAGE = [
+      "Montag",
+      "Dienstag",
+      "Mittwoch",
+      "Donnerstag",
+      "Freitag",
+      "Samstag",
+      "Sonntag"
+    ];
 
-    const DEFAULT_VENUE = "Ven1";
-    const DEFAULT_START = "09:00";
-    const DEFAULT_END = "09:30";
+    const ORTE = ["MI", "Stammgelände"];
 
-    // Change these if you want a wider or narrower bookable day.
-    const BOOKING_START = "08:00";
-    const BOOKING_END = "22:00";
-    const STEP_MINUTES = 30;
+    const OEFFNUNGSZEITEN = {
+      "MI": {
+        "Montag": ["08:00", "24:00"],
+        "Dienstag": ["08:00", "24:00"],
+        "Mittwoch": ["08:00", "24:00"],
+        "Donnerstag": ["08:00", "24:00"],
+        "Freitag": ["08:00", "24:00"],
+        "Samstag": ["10:00", "20:00"],
+        "Sonntag": ["10:00", "20:00"]
+      },
+      "Stammgelände": {
+        "Montag": ["08:00", "24:00"],
+        "Dienstag": ["08:00", "24:00"],
+        "Mittwoch": ["08:00", "24:00"],
+        "Donnerstag": ["08:00", "24:00"],
+        "Freitag": ["08:00", "24:00"],
+        "Samstag": ["09:00", "22:00"],
+        "Sonntag": ["09:00", "22:00"]
+      }
+    };
+
+    const STANDARD_ORT = "MI";
+    const STANDARD_BEGINN = "09:00";
+    const STANDARD_ENDE = "18:00";
+
+    const SCHRITT_MINUTEN = 30;
+    const MAX_MINUTEN_PRO_TAG = 16 * 60;
+    const MAX_MINUTEN_PRO_WOCHE = 40 * 60;
 
     const form = document.getElementById("form");
     const summary = document.getElementById("summary");
 
-    function safeId(value) {
-      return value.replaceAll(" ", "_").replaceAll(":", "_");
+    function idFuer(text) {
+      return text
+        .replaceAll(" ", "_")
+        .replaceAll(":", "_")
+        .replaceAll("ä", "ae")
+        .replaceAll("ö", "oe")
+        .replaceAll("ü", "ue")
+        .replaceAll("ß", "ss");
     }
 
-    function timeToMinutes(value) {
-      const [h, m] = value.split(":").map(Number);
+    function minuten(zeit) {
+      const [h, m] = zeit.split(":").map(Number);
       return h * 60 + m;
     }
 
-    function minutesToTime(value) {
-      const h = Math.floor(value / 60);
-      const m = value % 60;
+    function zeit(minutenwert) {
+      if (minutenwert === 1440) {
+        return "24:00";
+      }
+
+      const h = Math.floor(minutenwert / 60);
+      const m = minutenwert % 60;
+
       return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
     }
 
-    function makeTimeOptions(selectedValue, includeFinalEndTime = false) {
-      const start = timeToMinutes(BOOKING_START);
-      const end = timeToMinutes(BOOKING_END);
-      const last = includeFinalEndTime ? end : end - STEP_MINUTES;
+    function dauerText(minutenwert) {
+      const h = Math.floor(minutenwert / 60);
+      const m = minutenwert % 60;
+
+      if (m === 0) {
+        return `${h} Std.`;
+      }
+
+      return `${h} Std. ${m} Min.`;
+    }
+
+    function ausgewaehlterOrt(tag) {
+      const tagId = idFuer(tag);
+      const selected = document.querySelector(`input[name="${tagId}_ort"]:checked`);
+      return selected ? selected.value : STANDARD_ORT;
+    }
+
+    function oeffnungszeiten(tag, ort) {
+      return OEFFNUNGSZEITEN[ort][tag];
+    }
+
+    function zeitInBereich(wert, start, ende, istEnde) {
+      const wertMin = minuten(wert);
+      const startMin = minuten(start);
+      const endeMin = minuten(ende);
+
+      const erster = istEnde ? startMin + SCHRITT_MINUTEN : startMin;
+      const letzter = istEnde ? endeMin : endeMin - SCHRITT_MINUTEN;
+
+      if (wertMin < erster) return zeit(erster);
+      if (wertMin > letzter) return zeit(letzter);
+
+      return wert;
+    }
+
+    function optionen(von, bis, ausgewaehlt, istEnde, maxBis = null) {
+      const vonMin = minuten(von);
+      const bisMin = maxBis === null ? minuten(bis) : Math.min(minuten(bis), maxBis);
+
+      const erster = istEnde ? vonMin + SCHRITT_MINUTEN : vonMin;
+      const letzter = istEnde ? bisMin : bisMin - SCHRITT_MINUTEN;
 
       let html = "";
 
-      for (let t = start; t <= last; t += STEP_MINUTES) {
-        const value = minutesToTime(t);
-        const selected = value === selectedValue ? "selected" : "";
+      for (let t = erster; t <= letzter; t += SCHRITT_MINUTEN) {
+        const value = zeit(t);
+        const selected = value === ausgewaehlt ? "selected" : "";
         html += `<option value="${value}" ${selected}>${value}</option>`;
       }
 
       return html;
     }
 
-    function renderForm() {
+    function rebuildBeginn(tag, behalten = true) {
+      const tagId = idFuer(tag);
+      const ort = ausgewaehlterOrt(tag);
+      const [offen, geschlossen] = oeffnungszeiten(tag, ort);
+
+      const beginnSelect = document.getElementById(`${tagId}_beginn`);
+      const endeSelect = document.getElementById(`${tagId}_ende`);
+
+      let beginn = behalten ? beginnSelect.value : STANDARD_BEGINN;
+      let ende = behalten ? endeSelect.value : STANDARD_ENDE;
+
+      beginn = zeitInBereich(beginn, offen, geschlossen, false);
+      ende = zeitInBereich(ende, offen, geschlossen, true);
+
+      beginnSelect.innerHTML = optionen(offen, geschlossen, beginn, false);
+      beginnSelect.value = beginn;
+
+      rebuildEnde(tag, ende);
+      document.getElementById(`${tagId}_oeffnung`).textContent = `Öffnungszeiten: ${offen}–${geschlossen}`;
+    }
+
+    function rebuildEnde(tag, gewuenschtesEnde = null) {
+      const tagId = idFuer(tag);
+      const ort = ausgewaehlterOrt(tag);
+      const [offen, geschlossen] = oeffnungszeiten(tag, ort);
+
+      const beginnSelect = document.getElementById(`${tagId}_beginn`);
+      const endeSelect = document.getElementById(`${tagId}_ende`);
+
+      const beginn = beginnSelect.value;
+      const beginnMin = minuten(beginn);
+      const maxEndeMin = Math.min(minuten(geschlossen), beginnMin + MAX_MINUTEN_PRO_TAG);
+
+      let ende = gewuenschtesEnde || endeSelect.value || STANDARD_ENDE;
+      ende = zeitInBereich(ende, beginn, zeit(maxEndeMin), true);
+
+      endeSelect.innerHTML = optionen(beginn, zeit(maxEndeMin), ende, true);
+      endeSelect.value = ende;
+    }
+
+    function formularRendern() {
       form.innerHTML = "";
 
-      for (const day of days) {
-        const dayId = safeId(day);
+      for (const tag of WOCHENTAGE) {
+        const tagId = idFuer(tag);
 
         const card = document.createElement("div");
         card.className = "day-card";
-        card.id = `${dayId}_card`;
+        card.id = `${tagId}_card`;
 
         card.innerHTML = `
-          <label class="day-header" for="${dayId}_checked">
+          <div class="day-top">
             <input
+              class="day-check"
               type="checkbox"
-              id="${dayId}_checked"
-              onchange="toggleDay('${day}')"
+              id="${tagId}_aktiv"
+              onchange="tagGeaendert('${tag}')"
             >
 
-            <div>
-              <div class="day-name">${day}</div>
-              <div class="chosen-line" id="${dayId}_chosen">Not selected</div>
-            </div>
+            <label class="day-main" for="${tagId}_aktiv">
+              <div class="day-name">${tag}</div>
+              <div class="day-sub" id="${tagId}_sub"></div>
+            </label>
 
-            <div class="chevron">›</div>
-          </label>
+            <button class="change-btn" type="button" onclick="detailsUmschalten('${tag}')">
+              Ändern
+            </button>
+          </div>
 
           <div class="details">
-            <div class="section-title">Venue</div>
+            <div class="section-title">Ort</div>
 
-            <div class="venue-options">
-              ${venues.map((venue) => `
+            <div class="venue-grid">
+              ${ORTE.map((ort) => `
                 <label class="venue-option">
                   <input
                     type="radio"
-                    name="${dayId}_venue"
-                    value="${venue}"
-                    ${venue === DEFAULT_VENUE ? "checked" : ""}
-                    onchange="updateSummary()"
+                    name="${tagId}_ort"
+                    value="${ort}"
+                    ${ort === STANDARD_ORT ? "checked" : ""}
+                    onchange="ortGeaendert('${tag}')"
                   >
-                  ${venue}
+                  <span class="venue-label">${ort}</span>
                 </label>
               `).join("")}
             </div>
 
-            <div class="section-title">Time</div>
+            <div class="hours-line" id="${tagId}_oeffnung"></div>
+
+            <div class="section-title">Uhrzeit</div>
 
             <div class="time-row">
               <label class="time-field">
-                Start
-                <select id="${dayId}_start" onchange="updateSummary()">
-                  ${makeTimeOptions(DEFAULT_START, false)}
-                </select>
+                Beginn
+                <select id="${tagId}_beginn" onchange="beginnGeaendert('${tag}')"></select>
               </label>
 
               <label class="time-field">
-                End
-                <select id="${dayId}_end" onchange="updateSummary()">
-                  ${makeTimeOptions(DEFAULT_END, true)}
-                </select>
+                Ende
+                <select id="${tagId}_ende" onchange="ansichtAktualisieren()"></select>
               </label>
             </div>
 
-            <div class="error" id="${dayId}_error"></div>
+            <div class="status-line" id="${tagId}_status"></div>
           </div>
         `;
 
         form.appendChild(card);
+        rebuildBeginn(tag, false);
       }
 
-      updateSummary();
+      ansichtAktualisieren();
     }
 
-    function toggleDay(day) {
-      const dayId = safeId(day);
-      const checked = document.getElementById(`${dayId}_checked`).checked;
-      const card = document.getElementById(`${dayId}_card`);
+    function tagGeaendert(tag) {
+      const tagId = idFuer(tag);
+      const aktiv = document.getElementById(`${tagId}_aktiv`).checked;
+      const card = document.getElementById(`${tagId}_card`);
 
-      if (checked) {
-        card.classList.add("open");
-      } else {
-        card.classList.remove("open");
-      }
+      card.classList.toggle("selected", aktiv);
 
-      updateSummary();
+      // Absichtlich kein automatisches Aufklappen.
+      ansichtAktualisieren();
     }
 
-    function getSelectedVenue(day) {
-      const dayId = safeId(day);
-      const selected = document.querySelector(`input[name="${dayId}_venue"]:checked`);
-      return selected ? selected.value : null;
+    function detailsUmschalten(tag) {
+      const tagId = idFuer(tag);
+      const card = document.getElementById(`${tagId}_card`);
+      const button = card.querySelector(".change-btn");
+
+      const offen = card.classList.toggle("open");
+      button.textContent = offen ? "Schließen" : "Ändern";
     }
 
-    function collectBookings() {
-      const bookings = [];
-      const errors = [];
+    function ortGeaendert(tag) {
+      rebuildBeginn(tag, true);
+      ansichtAktualisieren();
+    }
 
-      for (const day of days) {
-        const dayId = safeId(day);
-        const checked = document.getElementById(`${dayId}_checked`).checked;
-        const errorBox = document.getElementById(`${dayId}_error`);
+    function beginnGeaendert(tag) {
+      rebuildEnde(tag);
+      ansichtAktualisieren();
+    }
 
-        errorBox.style.display = "none";
-        errorBox.textContent = "";
+    function buchungenSammeln() {
+      const buchungen = [];
+      const fehler = [];
+      let gesamtMinuten = 0;
 
-        if (!checked) {
-          document.getElementById(`${dayId}_chosen`).textContent = "Not selected";
+      for (const tag of WOCHENTAGE) {
+        const tagId = idFuer(tag);
+        const aktiv = document.getElementById(`${tagId}_aktiv`).checked;
+        const card = document.getElementById(`${tagId}_card`);
+        const sub = document.getElementById(`${tagId}_sub`);
+        const status = document.getElementById(`${tagId}_status`);
+
+        const ort = ausgewaehlterOrt(tag);
+        const beginn = document.getElementById(`${tagId}_beginn`).value;
+        const ende = document.getElementById(`${tagId}_ende`).value;
+        const dauer = minuten(ende) - minuten(beginn);
+
+        card.classList.toggle("selected", aktiv);
+        status.className = "status-line";
+        status.textContent = "";
+
+        sub.textContent = `${ort} · ${beginn}–${ende}`;
+
+        if (!aktiv) {
           continue;
         }
 
-        const venue = getSelectedVenue(day);
-        const start = document.getElementById(`${dayId}_start`).value;
-        const end = document.getElementById(`${dayId}_end`).value;
+        sub.textContent = `${ort} · ${beginn}–${ende} · ${dauerText(dauer)}`;
 
-        if (!venue) {
-          errors.push(`${day}: choose one venue`);
-          errorBox.textContent = "Choose one venue.";
-          errorBox.style.display = "block";
+        if (dauer <= 0) {
+          fehler.push(`${tag}: Ende muss nach Beginn liegen.`);
+          status.textContent = "Ende muss nach Beginn liegen.";
+          status.className = "status-line error";
           continue;
         }
 
-        if (timeToMinutes(start) >= timeToMinutes(end)) {
-          errors.push(`${day}: end time must be after start time`);
-          errorBox.textContent = "End time must be after start time.";
-          errorBox.style.display = "block";
-          document.getElementById(`${dayId}_chosen`).textContent = `${venue} — invalid time`;
+        if (dauer > MAX_MINUTEN_PRO_TAG) {
+          fehler.push(`${tag}: maximal 16 Stunden pro Tag.`);
+          status.textContent = "Maximal 16 Stunden pro Tag.";
+          status.className = "status-line error";
           continue;
         }
 
-        const booking = {
-          day: day,
-          venue: venue,
-          start: start,
-          end: end
-        };
+        gesamtMinuten += dauer;
 
-        bookings.push(booking);
-        document.getElementById(`${dayId}_chosen`).textContent = `${venue} — ${start} to ${end}`;
+        buchungen.push({
+          tag: tag,
+          ort: ort,
+          beginn: beginn,
+          ende: ende,
+
+          // Kompatibilität mit dem bisherigen Python-Bot:
+          day: tag,
+          venue: ort,
+          start: beginn,
+          end: ende
+        });
+
+        status.textContent = dauerText(dauer);
       }
 
-      return { bookings, errors };
+      if (gesamtMinuten > MAX_MINUTEN_PRO_WOCHE) {
+        fehler.push("Woche: maximal 40 Stunden insgesamt.");
+      }
+
+      return { buchungen, fehler, gesamtMinuten };
     }
 
-    function updateSummary() {
-      const result = collectBookings();
+    function ansichtAktualisieren() {
+      const result = buchungenSammeln();
 
-      if (result.bookings.length === 0 && result.errors.length === 0) {
-        summary.textContent = "No days selected yet.";
+      if (result.buchungen.length === 0 && result.fehler.length === 0) {
+        summary.className = "summary";
+        summary.textContent = "";
         return;
       }
 
       let text = "";
 
-      if (result.bookings.length > 0) {
-        text += "Selected:\n";
-        text += result.bookings
-          .map(item => `${item.day} — ${item.venue} — ${item.start} to ${item.end}`)
+      if (result.buchungen.length > 0) {
+        text += result.buchungen
+          .map(item => `${item.tag}: ${item.ort}, ${item.beginn}–${item.ende}`)
           .join("\n");
+
+        text += `\n\nGesamt: ${dauerText(result.gesamtMinuten)}`;
       }
 
-      if (result.errors.length > 0) {
-        if (text) {
-          text += "\n\n";
-        }
-
-        text += "Fix these issues:\n";
-        text += result.errors.join("\n");
+      if (result.fehler.length > 0) {
+        if (text) text += "\n\n";
+        text += result.fehler.join("\n");
       }
 
       summary.textContent = text;
+      summary.className = result.fehler.length > 0
+        ? "summary visible error"
+        : "summary visible";
     }
 
     function submitBooking() {
-      const result = collectBookings();
+      const result = buchungenSammeln();
 
-      if (result.errors.length > 0) {
-        tg.showAlert(result.errors.join("\n"));
+      if (result.fehler.length > 0) {
+        tg.showAlert(result.fehler.join("\n"));
         return;
       }
 
-      if (result.bookings.length === 0) {
-        tg.showAlert("Please select at least one weekday.");
+      if (result.buchungen.length === 0) {
+        tg.showAlert("Bitte mindestens einen Wochentag auswählen.");
         return;
       }
+
+      const deutsch = result.buchungen.map(item => ({
+        tag: item.tag,
+        ort: item.ort,
+        beginn: item.beginn,
+        ende: item.ende
+      }));
+
+      const kompatibel = result.buchungen.map(item => ({
+        day: item.day,
+        venue: item.venue,
+        start: item.start,
+        end: item.end
+      }));
 
       tg.sendData(JSON.stringify({
-        bookings: result.bookings
+        buchungen: deutsch,
+        bookings: kompatibel,
+        gesamt_minuten: result.gesamtMinuten,
+        gesamt: dauerText(result.gesamtMinuten)
       }));
 
       tg.close();
     }
 
-    renderForm();
+    formularRendern();
   </script>
 </body>
 </html>
